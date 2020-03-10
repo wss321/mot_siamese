@@ -1,0 +1,9 @@
+alpha: 1.0
+batchsize: 32
+color_jitter: true
+data_dir: /content/Market/pytorch/
+erasing_p: 0.5
+gpu_ids: '0'
+lr: 0.1
+name: bce_ec
+train_all: false
