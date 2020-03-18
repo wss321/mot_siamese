@@ -1,7 +1,6 @@
 # vim: expandtab:ts=4:sw=4
 import numpy as np
 import torch
-from torch.autograd import Variable
 from torchvision.transforms import transforms
 
 from tracker.siamese.model import ft_net
@@ -275,8 +274,9 @@ class SimilarityDistanceMetric(object):
                         # print(f_src_temp.size())
                         # print(f_target.size())
                         sim = model.verify(f_src_temp, f_target)
-                        sim = sim.mean(dim=0).cpu().data.numpy()[0]
-                        cost[j, i] = sim
+                        # print(sim.cpu().data.numpy()[:, 1])
+                        sim = sim.mean(dim=0).cpu().data.numpy()[1]
+                        cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
                         # print(sim)
 
             return cost
@@ -298,6 +298,6 @@ class SimilarityDistanceMetric(object):
                 area_candidate = self.bboxes[target][2:].prod()
                 area_rate = max([area_bbox / area_candidate, area_candidate / area_bbox])
                 if iou_cost < self.iou_th or area_rate > self.area_rate_th:
-                    cost_m[j, i] = 1.0  # 将不重叠的两个框的或面积差距大的距离置为1
+                    cost_m[j, i] = 1e5  # 将不重叠的两个框的或面积差距大的距离置为1
         # print(cost_m)
         return cost_m

@@ -216,7 +216,7 @@ class Tracker:
 
         self.metric.partial_fit(
             patches, targets, last_bboxes, active_targets)
-        return matches_td + new_td
+        return matches_td  # + new_td
 
     def _match_cascade(self, detections):
 

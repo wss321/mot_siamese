@@ -106,6 +106,20 @@ class ft_net(nn.Module):
         f_i = x.view(x.size(0), x.size(1))
         return f_i
 
+    def getFap(self, x):
+        x = self.model.conv1(x)
+        x = self.model.bn1(x)
+        x = self.model.relu(x)
+        x = self.model.maxpool(x)
+        x = self.model.layer1(x)
+        x = self.model.layer2(x)
+        x = self.model.layer3(x)
+        x = self.model.layer4(x)
+        x = self.model.avgpool(x)
+        x = x.view(x.size(0), x.size(1))
+        x = self.fc_cl(x)
+        return x
+
     def verify(self, fx, fy):
         v = self.fc_verif(fx * fy)
         v = self.bce(v)

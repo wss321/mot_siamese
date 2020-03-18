@@ -17,6 +17,8 @@ from tools import iou
 import motmetrics as mm
 import pandas as pd
 import colorsys
+from tracker.siamese.model import ft_net
+from tracker.track_utils import load_network
 
 # parameters
 default = {'entry_exit_cost': 5, 'thresh': 1.8,
@@ -52,6 +54,7 @@ def observation_model(**kwargs):
     """
     if 'scores' in kwargs:
         scores = np.array(kwargs['scores']).astype(np.float)
+        # print(np.log(-0.446 * scores + 0.456))
         return np.log(-0.446 * scores + 0.456)
     else:
         return -2
@@ -151,13 +154,18 @@ def transition_model(**kwargs):
             if max(abs(box1[0] - box2[0]), abs(box1[1] - box2[1])) > max(box1[2], box1[3], box2[2], box2[3]):
                 costs[i, j] = np.inf
             else:
-                # 颜色直方图损失
+                # 颜色直方图损失和iou
                 costs[i, j] = -np.log(0.5 * float(iou(box1, box2)) * (miss_rate ** time_gap) \
                                       + 0.5 * (1 - cv2.compareHist(feature1, feature2,
                                                                    cv2.HISTCMP_BHATTACHARYYA)) + 1e-5)
                 # print(costs[i, j])
 
     return costs
+
+
+# def simese_transidtion():
+#     model_structure = ft_net(751)
+#     model = load_network(model_structure)
 
 
 def get_tracks(entry_exit_cost=None, thresh=None,
@@ -182,6 +190,22 @@ def get_tracks(entry_exit_cost=None, thresh=None,
                             frame_idx=i)
 
     trajectory = track_model.compute_trajectories()
+    # min_cost_flow = track_model.graph
+    # if min_cost_flow.Solve() == min_cost_flow.OPTIMAL:
+    #     print('Minimum cost:', min_cost_flow.OptimalCost())
+    #     print('')
+    #     print('Arc\tFlow / Capacity\tCost\tUnitcost')
+    #
+    #     for i in range(min_cost_flow.NumArcs()):
+    #         cost = min_cost_flow.Flow(i) * min_cost_flow.UnitCost(i)
+    #         print('%1s -> %1s\t%3s / %3s\t%3s\t%3s' % (
+    #             min_cost_flow.Tail(i),
+    #             min_cost_flow.Head(i),
+    #             min_cost_flow.Flow(i),
+    #             min_cost_flow.Capacity(i),
+    #             cost, min_cost_flow.UnitCost(i)))
+    # else:
+    #     print('There was an issue with the min cost flow input.')
     for i, t in enumerate(trajectory):
         for j, box in enumerate(t):
             record.append([box[0] + 1, i + 1, box[2][0], box[2][1], box[2][2], box[2][3]])

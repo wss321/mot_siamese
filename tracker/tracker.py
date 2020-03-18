@@ -127,7 +127,7 @@ class Tracker(object):
         # 对最终没有匹配的检测框分配新的id
         unmatches_td = []
         for detection_idx in unmatched_detections:
-            ni = self._initiate_track(self.folder,self.now_frame_id,bboxes[detection_idx])
+            ni = self._initiate_track(self.folder, self.now_frame_id, bboxes[detection_idx])
             unmatches_td.append([ni, detection_idx])
         self.tracks = [t for t in self.tracks if not t.is_deleted()]  # 丢掉被删除的id
         return matches, unmatched_tracks, unmatched_detections
@@ -147,5 +147,3 @@ def to_tlbr(xywh):
     ret = xywh.copy()
     ret[2:] += ret[:2]
     return ret
-
-
