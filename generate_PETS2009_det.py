@@ -104,6 +104,7 @@ if __name__ == '__main__':
     # f = open('../det_results')
 
     opt.demo = seq_path
+    opt.vis_thresh = 0.4
 
     if os.path.isdir(opt.demo):
         opt.det_result_file = open(det_result_path, 'w')

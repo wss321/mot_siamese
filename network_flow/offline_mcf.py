@@ -142,12 +142,18 @@ class MinCostFlowTracker(object):
                     "type": 'transition',
                 }
             })
+            # source -> ui
+            # capacity = 1边不能共享(相交)
             self.graph.AddArcWithCapacityAndUnitCost(0, int(self.node_idx), 1, \
                                                      int(multi_factor * self.entry_exit_cost))
+            # 转移流ui->vi
+            # print(int(multi_factor * cost))
             self.graph.AddArcWithCapacityAndUnitCost(int(self.node_idx), int(self.node_idx + 1), \
-                                                     1, int(multi_factor * cost))
+                                                     1, int(multi_factor * -1))
+            # vi->sink
             self.graph.AddArcWithCapacityAndUnitCost(int(self.node_idx + 1), 1, 1, \
                                                      int(multi_factor * self.entry_exit_cost))
+            # print(int(multi_factor * self.entry_exit_cost))
             self.node_idx += 2
 
         # Link detections to candidate predecessors.
@@ -179,6 +185,8 @@ class MinCostFlowTracker(object):
                     if cost > self.cost_threshold:
                         continue
                     last_id = int(predecessor_node_ids[i] + 1)
+                    # vi->uj
+                    # print(int(multi_factor * cost))
                     self.graph.AddArcWithCapacityAndUnitCost(last_id, int(node_ids[j]), 1,
                                                              int(multi_factor * cost))
         self.nodes_in_timestep.append(node_ids)
@@ -188,7 +196,7 @@ class MinCostFlowTracker(object):
         self.current_frame_idx += 1
         self.last_frame_id = first_node_id
 
-        return self.trajectories, self.entire_trajectories
+        return None
 
     def update_latest_node(self, boxes, image=None, **kwargs):
         """update node's box by new boxes

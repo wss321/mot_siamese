@@ -42,7 +42,7 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, img_shape, center_assingment, mean, max_iou_distance=0.7, max_age=30, n_init=3,
+    def __init__(self, metric, img_shape, center_assingment, mean, max_iou_distance=0.7, max_age=60, n_init=3,
                  max_eu_dis=3461.12):
         # self.model = model
         self.metric = metric

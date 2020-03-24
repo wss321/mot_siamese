@@ -88,8 +88,16 @@ def move(data_path=r"E:\PyProjects\datasets\Crowd_PETS09\S2\L1\Time_12-34"):
 
 
 if __name__ == '__main__':
-    read_cvml_detections('E:/PyProjects/datasets/data-tud/det/PETS2009/PETS2009-S2L1-c1-det.xml',
-                         r'E:\PyProjects\datasets\Crowd_PETS09\S2\L1\Time_12-34\det/det.txt')
-    read_cvml_groundtruth('E:/PyProjects/datasets/data-tud/gt/PETS2009/PETS2009-S2L1.xml',
-                          r'E:\PyProjects\datasets\Crowd_PETS09\S2\L1\Time_12-34/gt/gt.txt')
-    move()
+    # read_cvml_detections('E:/PyProjects/datasets/data-tud/det/PETS2009/PETS2009-S2L1-c1-det.xml',
+    #                      r'E:\PyProjects\datasets\Crowd_PETS09\S2\L1\Time_12-34\det/det.txt')
+    # read_cvml_groundtruth('E:/PyProjects/datasets/data-tud/gt/PETS2009/PETS2009-S2L1.xml',
+    #                       r'E:\PyProjects\datasets\Crowd_PETS09\S2\L1\Time_12-34/gt/gt.txt')
+    # move()
+    # read_cvml_detections('E:/PyProjects/datasets/data-tud/det/PETS2009/PETS2009-S2L2-c1-det.xml',
+    #                      r'E:\PyProjects\datasets\Crowd_PETS09\S2\L2\L2001\det.txt')
+    # read_cvml_groundtruth('E:/PyProjects/datasets/data-tud/gt/PETS2009/PETS2009-S2L2.xml',
+    #                       r'E:\PyProjects\datasets\Crowd_PETS09\S2\L2\L2001/gt/gt.txt')
+    read_cvml_detections('E:/PyProjects/datasets/data-tud/det/PETS2009/PETS2009-S2L2-c1-det.xml',
+                         r'E:\PyProjects\datasets\Crowd_PETS09\S2\L3\L3001\det.txt')
+    read_cvml_groundtruth('E:/PyProjects/datasets/data-tud/gt/PETS2009/PETS2009-S2L3.xml',
+                          r'E:\PyProjects\datasets\Crowd_PETS09\S2\L3\L3001/gt/gt.txt')

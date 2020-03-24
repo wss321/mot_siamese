@@ -1,6 +1,6 @@
                 IDF1   IDP   IDR  Rcll  Prcn  GT MT  PT  ML   FP     FN IDs    FM  MOTA  MOTP IDt IDa IDm
 MOT17-02-DPM   21.6% 60.1% 13.2% 18.9% 86.3%  62  3  15  44  558  15069 131   291 15.2% 0.246  38  84   7
-MOT17-02-FRCNN 36.3% 66.6% 24.9% 35.1% 93.8%  62  7  27  28  432  12057 125   193 32.1% 0.123  73  56  14
+MOT17-02-FRCNN 36.3% 66.6% 24.9% 35.1% 93.8%  62  7  27  28  432  12057 125   193 32.1%  0.123  73  56  14
 MOT17-02-SDP   42.1% 61.5% 32.0% 47.5% 91.3%  62  7  38  17  839   9751 424   813 40.7% 0.197 215 172  11
 MOT17-04-DPM   23.0% 54.6% 14.6% 22.4% 83.9%  83  0  29  54 2047  36923 242   639 17.5% 0.214 116  98   8
 MOT17-04-FRCNN  0.0%  nan%  0.0%  0.0%  nan%  83  0   0  83    0  47557   0     0  0.0%   nan   0   0   0
@@ -21,3 +21,16 @@ MOT17-13-DPM    nan%  nan%  nan%  nan%  nan%   0  0   0   0    0      0   0     
 MOT17-13-FRCNN  nan%  nan%  nan%  nan%  nan%   0  0   0   0    0      0   0     0  nan%   nan   0   0   0
 MOT17-13-SDP    nan%  nan%  nan%  nan%  nan%   0  0   0   0    0      0   0     0  nan%   nan   0   0   0
 OVERALL        16.7% 59.8%  9.7% 14.4% 88.4% 568 17 109 442 3876 175831 922  1936 12.0%   nan 442 410  40
+            IDF1   IDP   IDR  Rcll  Prcn GT MT PT ML   FP  FN IDs   FM  MOTA  MOTP IDt IDa IDm
+Time_12-34 69.7% 66.7% 72.9% 87.0% 79.5% 19 15  4  0 1041 606  39  183 63.7% 0.245   9  17   2
+OVERALL    69.7% 66.7% 72.9% 87.0% 79.5% 19 15  4  0 1041 606  39  183 63.7% 0.245   9  17   2
+            IDF1   IDP   IDR  Rcll   Prcn GT MT PT ML FP FN IDs  FM  MOTA  MOTP IDt IDa IDm
+Time_12-34 95.9% 96.1% 95.7% 99.6% 100.0% 19 19  0  0  0 18   8   0 99.4% 0.001   9   0   1
+OVERALL    95.9% 96.1% 95.7% 99.6% 100.0% 19 19  0  0  0 18   8   0 99.4% 0.001   9   0   1
+            IDF1   IDP   IDR  Rcll  Prcn GT MT PT ML  FP  FN IDs   FM  MOTA  MOTP IDt IDa IDm
+Time_12-34 77.7% 78.1% 77.4% 92.1% 92.9% 19 16  3  0 326 367  26  113 84.5% 0.240   8  13   4
+OVERALL    77.7% 78.1% 77.4% 92.1% 92.9% 19 16  3  0 326 367  26  113 84.5% 0.240   8  13   4
+            IDF1   IDP   IDR  Rcll  Prcn GT MT PT ML  FP  FN IDs   FM  MOTA  MOTP IDt IDa IDm
+Time_12-34 69.0% 69.2% 68.8% 92.1% 92.6% 19 16  3  0 340 367  26  112 84.2% 0.240  10  12   6
+OVERALL    69.0% 69.2% 68.8% 92.1% 92.6% 19 16  3  0 340 367  26  112 84.2% 0.240  10  12   6
+         IDF1  IDP  IDR Rcll Prcn GT MT PT ML    FP FN IDs  FM  MOTA MOTP IDt IDa IDm

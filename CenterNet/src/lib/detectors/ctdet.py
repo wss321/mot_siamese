@@ -86,7 +86,7 @@ class CtdetDetector(BaseDetector):
 
     def show_results(self, debugger, image, results):
         debugger.add_img(image, img_id='ctdet')
-        for j in range(1, self.num_classes + 1):
+        for j in range(1, 2):  # 只显示人
             for bbox in results[j]:
                 if bbox[4] > self.opt.vis_thresh:
                     debugger.add_coco_bbox(bbox[:4], j - 1, bbox[4], img_id='ctdet')

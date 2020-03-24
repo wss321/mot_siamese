@@ -72,7 +72,8 @@ class MotLoader(object):
         return [dets['bbox'] for dets in detections[frame_id - 1]], [dets['score'] for dets in detections[frame_id - 1]]
 
 
-def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, budget=32, iou_th=0.3, area_rate_th=2):
+def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, budget=32, iou_th=0.3, score_th=0.4,
+         area_rate_th=2):
     # Definition of the parameters
 
     mot = MotLoader(data_dir, e_type)
@@ -82,6 +83,7 @@ def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, bud
         #     continue
         dets = mot.load_detections(det_dir + '/det/det.txt')
         # dets = mot.load_detections(det_dir + '/gt/gt.txt')
+        # dets = mot.load_detections(det_dir + '/det/centernet_det.txt')
         seqinfo = det_dir + '/seqinfo.ini'
         with open(seqinfo, 'r') as info:
             lines = info.readlines()
@@ -108,8 +110,8 @@ def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, bud
                 frame = cv2.imread(file)  # np.asarray(Image.open(det_dir + '/img1/' + seq))
                 bboxes, scores = mot.detFromFrameID(dets, frame_id)
 
-                bboxes = [bboxes[i] for i, s in enumerate(scores) if s > 0]
-                scores = [s for i, s in enumerate(scores) if s > 0]
+                bboxes = [bboxes[i] for i, s in enumerate(scores) if s > score_th]
+                scores = [s for i, s in enumerate(scores) if s > score_th]
 
                 rois = extractor(frame, bboxes)
                 detections = [Detection(bbox_with_roi[0], scores[idx], bbox_with_roi[1]) for idx, bbox_with_roi
@@ -200,6 +202,6 @@ def main(data_root='/data/MOT16/train', det_root=None,
         formatters=mh.formatters,
         namemap=mm.io.motchallenge_metric_names
     )
-    with open(os.path.join(result_root, "mot17_result"), 'a') as f:
+    with open(os.path.join(result_root, "mot_result.txt"), 'a') as f:
         f.write(strsummary + "\n")
     print(strsummary)

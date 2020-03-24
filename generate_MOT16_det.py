@@ -102,6 +102,7 @@ if __name__ == '__main__':
 
     # generate box, conf file
     # f = open('../det_results')
+    opt.vis_thresh = 0.4
 
     for sq in seqs:
         opt.demo = seq_path.format(sq)
