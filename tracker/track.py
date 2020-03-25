@@ -76,6 +76,7 @@ class Track(object):
         ret = self.bboxes[-1].copy()
         ret[2:] += ret[:2]
         return ret
+
     def mark_missed(self):
         """Mark this track as missed (no association at the current time step).
         """

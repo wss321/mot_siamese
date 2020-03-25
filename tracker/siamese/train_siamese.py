@@ -299,10 +299,9 @@ criterion1 = nn.CrossEntropyLoss().cuda()
 criterion2 = nn.BCELoss().cuda()
 
 not_base_params = list(map(id, model.fc_cl.parameters())) \
-                  + list(map(id, model.id_classifier.parameters()))\
+                  + list(map(id, model.id_classifier.parameters())) \
                   + list(map(id, model.fc_verif.parameters())) \
                   + list(map(id, model.bce.parameters()))
-
 
 base_params = filter(lambda p: id(p) not in not_base_params, model.parameters())
 optimizer_ft = optim.SGD([

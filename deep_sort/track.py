@@ -1,7 +1,4 @@
-# vim: expandtab:ts=4:sw=4
-
-
-class TrackState:
+class TrackState(object):
     """
     Enumeration type for the single target track state. Newly created tracks are
     classified as `tentative` until enough evidence has been collected. Then,
@@ -16,9 +13,8 @@ class TrackState:
     Deleted = 3
 
 
-class Track:
+class Track(object):
     """
-    单个目标
     A single target track with state space `(x, y, a, h)` and associated
     velocities, where `(x, y)` is the center of the bounding box, `a` is the
     aspect ratio and `h` is the height.
@@ -65,30 +61,27 @@ class Track:
     """
 
     def __init__(self, mean, covariance, track_id, n_init, max_age,
-                 patches=None, xyah=None, max_patch_len=0):
-        self.mean = mean  # 速度
+                 patches=None, xyah=None, max_patch_len=32, frame_id=None):
+        self.mean = mean  # predicted state by kalman
         self.covariance = covariance
         self.track_id = track_id
-        self.hits = 1  # 预测的总次数
+        self.hits = 1  # number of update
         self.age = 1
-        self.time_since_update = 0  # 多长时间没有更新预测值(检测)了
+        self.time_since_update = 0
 
         self.state = TrackState.Tentative
         self.patches = []
         if patches is not None:  # and len(self.features) < 60
             self.patches.append(patches)
-
+        self.frame_id = [frame_id]
         self._n_init = n_init
         self._max_age = max_age
         if xyah is not None:
             self.xyah = [xyah]
-        self.color = (0, 255, 0)
-        self.color_change = False
-        self.cct = 0
         self.max_len = max_patch_len
 
     def to_tlwh(self):
-        """Get current position in bounding box format `(top left x, top left y,
+        """Get current kalman filter predicted position in bounding box format `(top left x, top left y,
         width, height)`.
 
         Returns
@@ -130,12 +123,12 @@ class Track:
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, kf, detection):
+    def update(self, kf, detection, now_frame_id):
         """Perform Kalman filter measurement update step and update the feature
         cache.
         更新状态空间
 
-        Parameters
+        Parametersl
         ----------
         kf : kalman_filter.KalmanFilter
             The Kalman filter.
@@ -153,22 +146,9 @@ class Track:
 
         self.hits += 1
         self.time_since_update = 0
+        self.frame_id.append(now_frame_id)
         if self.state == TrackState.Tentative and self.hits >= self._n_init:
             self.state = TrackState.Confirmed
-        # if self.color_change:
-        #     self.cct += 1
-        #     if self.cct > 30:
-        #         self.cct = 0
-        #         self.color_change = False
-        #         self.color = (0, 255, 0)
-
-    def centers(self):
-        """
-        get all centers
-        :return:
-        """
-        cts = [[xyah[0], xyah[1]] for xyah in self.xyah]
-        return cts
 
     def mark_missed(self):
         """Mark this track as missed (no association at the current time step).

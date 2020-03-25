@@ -4,14 +4,10 @@ import torch
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 import numpy as np
-from torchvision import datasets, transforms
-import torchvision
+from torchvision import transforms
 import os
-import scipy.io
-import yaml
-from .siamese.model import ft_net
 import cv2
-from .loader import extract_image_patch, show_image, load_detections, detection_from_frame_id, show_bboxes
+from .loader import extract_image_patch, load_detections, detection_from_frame_id, show_bboxes
 from scipy.optimize import linear_sum_assignment
 from sklearn.utils.linear_assignment_ import linear_assignment
 

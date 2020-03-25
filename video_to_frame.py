@@ -1,14 +1,14 @@
 import cv2
 import os
 
-# video_path = r"E:\PyProjects\MOT\videos\Time_12-34.avi"
-# save_path = r"E:\PyProjects\MOT\videos\Time_12-34"
+video_path = r"E:\PyProjects\MOT\videos\Time_12-34.avi"
+save_path = r"E:\PyProjects\MOT\videos\L1001_iouth0.99"
 
 # video_path = r"E:\PyProjects\MOT\videos\L2001.avi"
 # save_path = r"E:\PyProjects\MOT\videos\L2001"
 
-video_path = r"E:\PyProjects\MOT\videos\L3001.avi"
-save_path = r"E:\PyProjects\MOT\videos\L3001"
+# video_path = r"E:\PyProjects\MOT\videos\L3001.avi"
+# save_path = r"E:\PyProjects\MOT\videos\L3001"
 
 if not os.path.exists(save_path):
     os.makedirs(save_path)

@@ -1,32 +1,32 @@
-import os
 import numpy as np
-from PIL import Image
 from deep_sort.tracker import Tracker
-from deep_sort import nn_matching, generate_detections as gdet
+from deep_sort.extractor import extract
+from deep_sort import nn_matching
 from deep_sort.detection import Detection
-import cv2
 import os
+import torch
 import cv2
 import logging
 import motmetrics as mm
-# from utils import visualization as vis
 from tools.log import logger
-# from utils.timer import Timer
 from tools.evaluation import Evaluator
 from tqdm import tqdm
 import colorsys
+from tracker.siamese.model import Siamese
+import copy
 
 rgb = lambda x: colorsys.hsv_to_rgb((x * 0.41) % 1, 1., 1. - (int(x * 0.41) % 4) / 5.)
 colors = lambda x: (int(rgb(x)[0] * 255), int(rgb(x)[1] * 255), int(rgb(x)[2] * 255))
 
 
-class MotLoader(object):
-    def __init__(self, main_dir, eval_type='train'):
-        self.main_dir = main_dir
-        self.type = eval_type
-        # if self.type not in ['train', 'test']:
-        #     raise ValueError('eval_type must be one of train or test')
+def sigmoid(x):
+    s = 1 / (1 + np.exp(-x))
+    return s
 
+
+class MotLoader(object):
+    def __init__(self, main_dir):
+        self.main_dir = main_dir
         self.map_dir, self.sqm = self.__get_seqmaps()
 
     def load_detections(self, detections):
@@ -62,8 +62,8 @@ class MotLoader(object):
         return data
 
     def __get_seqmaps(self):
-        seqmaps = os.listdir(os.path.join(self.main_dir, self.type))
-        seqmaps_dir = [os.path.join(self.main_dir, self.type) + '/{}'.format(i) for i in
+        seqmaps = os.listdir(self.main_dir)
+        seqmaps_dir = [self.main_dir + '/{}'.format(i) for i in
                        seqmaps]
 
         return seqmaps_dir, seqmaps
@@ -72,18 +72,21 @@ class MotLoader(object):
         return [dets['bbox'] for dets in detections[frame_id - 1]], [dets['score'] for dets in detections[frame_id - 1]]
 
 
-def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, budget=32, iou_th=0.3, score_th=0.4,
-         area_rate_th=2):
-    # Definition of the parameters
+def load_network(network, model_path):
+    network.load_state_dict(torch.load(model_path), strict=False)
+    return network
 
-    mot = MotLoader(data_dir, e_type)
+
+def tracking(args):
+    # Definition of the parameters
+    logger.setLevel(logging.INFO)
+    logger.info("Loading Model...")
+    mot = MotLoader(args.data_dir)
+    model = Siamese(args.num_classes)
+    model = load_network(model, args.model_path)
     for index, det_dir in enumerate(mot.map_dir):
         seqs = os.listdir(det_dir + '/img1')
-        # if not "FRCNN" in det_dir:
-        #     continue
-        dets = mot.load_detections(det_dir + '/det/det.txt')
-        # dets = mot.load_detections(det_dir + '/gt/gt.txt')
-        # dets = mot.load_detections(det_dir + '/det/centernet_det.txt')
+        dets = mot.load_detections(det_dir + '/det/{}'.format(args.det_file))
         seqinfo = det_dir + '/seqinfo.ini'
         with open(seqinfo, 'r') as info:
             lines = info.readlines()
@@ -91,38 +94,50 @@ def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, bud
             lines = {line[0]: line[1].strip("\n") for line in lines if len(line) > 1}
         w, h, ext, img_dir = int(lines['imWidth']), int(lines['imHeight']), lines['imExt'], lines["imDir"]
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        if show:
-            cv2.namedWindow('{}'.format(mot.sqm[index]), cv2.WINDOW_NORMAL)
-        if save_video:
-            out = cv2.VideoWriter("./videos/" + mot.sqm[index] + '.avi', fourcc, 7, (w, h))
-        distance_th = 0.4
-        extractor = gdet.extractor()
-        metric = nn_matching.SimilarityDistanceMetric(distance_th, budget, iou_th, area_rate_th)
-        tracker = Tracker(metric, img_shape=(w, h), max_eu_dis=0.1 * np.sqrt((w ** 2 + h ** 2)),
-                          center_assingment=False, mean=True)
-        with open(output_dir + mot.sqm[index] + '.txt', 'w') as f:
+        if args.show:
+            cv2.namedWindow('Tracking-{}'.format(mot.sqm[index]), cv2.WINDOW_NORMAL)
+        if args.show_kalman:
+            cv2.namedWindow('Kalman-{}'.format(mot.sqm[index]), cv2.WINDOW_NORMAL)
+        if args.save_video:
+            video_dir = args.output_dir + "/videos/"
+            if not os.path.exists(video_dir):
+                os.makedirs(video_dir)
+            out = cv2.VideoWriter(video_dir + mot.sqm[index] + '.avi', fourcc, 7, (w, h))
+        metric = nn_matching.SimilarityMetric(-np.log(args.sim_th), model, args.budget)
+        max_iou_distance = 0.99
+        if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index]:
+            max_iou_distance = 0.8
+        if args.crowed:
+            max_iou_distance = 0.8
+        tracker = Tracker(metric, img_shape=(w, h), max_age=args.age, max_iou_distance=max_iou_distance, mean=True)
+        logger.info("Tracking...")
+        with open(args.output_dir + mot.sqm[index] + '.txt', 'w') as f:
             seqs = tqdm(range(len(seqs)))
             seqs.set_description(mot.sqm[index])
             for seq in seqs:
-                # print('{}-{}'.format(mot.sqm[index], seq + 1))
                 frame_id = seq + 1
                 file = os.path.join(det_dir, img_dir, "{}".format(frame_id).zfill(6)) + ".jpg"
-                frame = cv2.imread(file)  # np.asarray(Image.open(det_dir + '/img1/' + seq))
+                frame = cv2.imread(file)
                 bboxes, scores = mot.detFromFrameID(dets, frame_id)
+                if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index]:
+                    bboxes = [bboxes[i] for i, s in enumerate(scores) if s > 0.2]
+                    scores = [s for i, s in enumerate(scores) if s > 0.2]
+                else:
+                    bboxes = [bboxes[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
+                    scores = [sigmoid(s) for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
 
-                bboxes = [bboxes[i] for i, s in enumerate(scores) if s > score_th]
-                scores = [s for i, s in enumerate(scores) if s > score_th]
-
-                rois = extractor(frame, bboxes)
+                rois = extract(frame, bboxes)
                 detections = [Detection(bbox_with_roi[0], scores[idx], bbox_with_roi[1]) for idx, bbox_with_roi
                               in
                               enumerate(zip(bboxes, rois))]
                 tracker.predict()
-                tracks_dets = tracker.update(detections, frame)
-                # frame = frame
+                tracks_dets = tracker.update(detections)
+                frame_copy = copy.copy(frame)
+
                 for td in tracks_dets:
                     t = td[0]
                     d = detections[td[1]].tlwh
+
                     f.write(
                         '{},{},{:.2f},{:.2f},{:.2f},{:.2f},{},{},{},{}\n'.format(frame_id, t, d[0], d[1], d[2], d[3], 1,
                                                                                  -1, -1, -1))
@@ -132,16 +147,29 @@ def eval(data_dir, output_dir, e_type='train', show=False, save_video=False, bud
                                   2)
                     cv2.putText(frame, "{}".format(t), (int(bbox[0]), int(bbox[1])), 0,
                                 5e-3 * 200, colors(t), 2)
-                # frame = cv2.resize(frame, (960, 540))
-                if show:
-                    cv2.imshow('{}'.format(mot.sqm[index]), frame)
+                if args.show_kalman:
+                    for track in tracker.tracks:
+                        t = track.track_id
+                        bbox = track.to_tlwh()  # # bbox predicted by kalman
+                        bbox[2:] += bbox[:2]
+                        cv2.rectangle(frame_copy, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])),
+                                      colors(t),
+                                      2)
+                        cv2.putText(frame_copy, "{}".format(t), (int(bbox[0]), int(bbox[1])), 0,
+                                    5e-3 * 200, colors(t), 2)
+                    cv2.imshow('Kalman-{}'.format(mot.sqm[index]), frame_copy)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
-                if save_video:
+                if args.show:
+                    cv2.imshow('Tracking-{}'.format(mot.sqm[index]), frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+                if args.save_video:
                     out.write(frame)
-        if save_video:
+        if args.save_video:
             out.release()
         cv2.destroyAllWindows()
+        logger.info("Track Done.")
 
 
 def mkdirs(path):
@@ -172,23 +200,20 @@ def write_results(filename, results, data_type):
     logger.info('save results to {}'.format(filename))
 
 
-def main(data_root='/data/MOT16/train', det_root=None,
-         seqs=('MOT16-05',), exp_name='demo', save_image=False, show_image=True):
+def eval(args, seqs=None):
     logger.setLevel(logging.INFO)
-    result_root = "./output"
-    # mkdirs(result_root)
+    result_root = args.output_dir
+    mkdirs(result_root)
     data_type = 'mot'
-
-    # run tracking
+    if seqs is None:
+        seqs = os.listdir(args.data_dir)
     accs = []
     for seq in seqs:
-        output_dir = os.path.join(data_root, 'outputs', seq) if save_image else None
-
         logger.info('start seq: {}'.format(seq))
         result_filename = os.path.join(result_root, '{}.txt'.format(seq))
         # eval
         logger.info('Evaluate seq: {}'.format(seq))
-        evaluator = Evaluator(data_root, seq, data_type)
+        evaluator = Evaluator(args.data_dir, seq, data_type)
         accs.append(evaluator.eval_file(result_filename))
 
     # get summary
@@ -202,6 +227,6 @@ def main(data_root='/data/MOT16/train', det_root=None,
         formatters=mh.formatters,
         namemap=mm.io.motchallenge_metric_names
     )
-    with open(os.path.join(result_root, "mot_result.txt"), 'a') as f:
+    with open(os.path.join(result_root, "eval_result.txt"), 'a') as f:
         f.write(strsummary + "\n")
     print(strsummary)

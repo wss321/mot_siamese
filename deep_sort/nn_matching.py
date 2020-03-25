@@ -3,10 +3,6 @@ import numpy as np
 import torch
 from torchvision.transforms import transforms
 
-from tracker.siamese.model import ft_net
-from tracker.track_utils import load_network
-from time import time
-
 
 def iou(bbox, candidates):
     """Computer intersection over union.
@@ -137,21 +133,18 @@ def _nn_cosine_distance(x, y, mean=True):
     """
     distances = _cosine_distance(x, y)
     if mean:
-        # distances.mean(axis=0)改为distances.min(axis=0)
         return distances.mean(axis=0)
     return distances.min(axis=0)
 
 
-class SimilarityDistanceMetric(object):
+class SimilarityMetric(object):
     """
     A nearest neighbor distance metric that, for each target, returns
     the closest distance to any sample that has been observed so far.
 
     Parameters
     ----------
-    metric : str
-        Either "euclidean" or "cosine".
-    matching_threshold: float
+    th: float
         The matching threshold. Samples with larger distance are considered an
         invalid match.
     budget : Optional[int]
@@ -166,10 +159,7 @@ class SimilarityDistanceMetric(object):
 
     """
 
-    def __init__(self, th, budget=1, iou_th=0.3, area_rate_th=2):
-        model_structure = ft_net(751)
-        model = load_network(model_structure)
-
+    def __init__(self, th, model, budget=16):
         # Remove the final fc layer and classifier layer
 
         # Change to test mode
@@ -178,8 +168,6 @@ class SimilarityDistanceMetric(object):
         self.matching_threshold = th
         self.budget = budget
         self.model = model
-        self.iou_th = iou_th
-        self.area_rate_th = area_rate_th
         self.samples = {}
 
     def partial_fit(self, patch, targets, bboxes, active_targets):
@@ -206,7 +194,7 @@ class SimilarityDistanceMetric(object):
                 self.samples[target] = self.samples[target][-self.budget:]
         self.samples = {k: self.samples[k] for k in active_targets}
 
-    def distance(self, src_patches, bboxes, targets, mean=True):
+    def distance(self, src_patches, targets, mean=True):
         """Compute distance between features and targets.
 
         Parameters
@@ -242,22 +230,6 @@ class SimilarityDistanceMetric(object):
             ])
 
             cost = np.zeros((len(targets), len(srcs)))
-            # with torch.no_grad():
-            #     for i, src in enumerate(srcs):
-            #         src = data_transforms(src).numpy()
-            #         for j, tars in enumerate(targets):
-            #             src_temp = []
-            #             tars_temp = []
-            #             for tar in tars:
-            #                 tar = data_transforms(tar).numpy()
-            #                 tars_temp.append(tar)
-            #                 src_temp.append(src)
-            #             src_i = np.asarray(src_temp)
-            #             src_i = Variable(torch.Tensor(src_i).cuda())  # .unsqueeze_(0)
-            #             tars = np.array(tars_temp)
-            #             tars = Variable(torch.Tensor(tars).cuda())  # .unsqueeze_(0)
-            #             _, sim = model(src_i, tars)
-            #             cost[j, i] = sim.mean(dim=0).cpu().data.numpy()[0]
             with torch.no_grad():
                 srcs = np.asarray([data_transforms(src).numpy() for src in srcs])
                 srcs = torch.Tensor(srcs).cuda()
@@ -268,36 +240,18 @@ class SimilarityDistanceMetric(object):
                     tars = torch.Tensor(tars).cuda()
                     f_targets.append(model.get_feature(tars))
                 for i, f_src in enumerate(f_srcs):
-                    # print(f_srcs.size())
                     for j, f_target in enumerate(f_targets):
                         f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
-                        # print(f_src_temp.size())
-                        # print(f_target.size())
                         sim = model.verify(f_src_temp, f_target)
-                        # print(sim.cpu().data.numpy()[:, 1])
                         sim = sim.mean(dim=0).cpu().data.numpy()[1]
                         cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
-                        # print(sim)
 
             return cost
 
-        # cost_matrix = np.zeros((len(targets), len(features)))
-        # 取最后一个
+        # get image patches to compute similarity
         if mean:
             tars_patches = [self.samples[target] for i, target in enumerate(targets)]
         else:
             tars_patches = [[self.samples[target][-1]] for i, target in enumerate(targets)]
-        # print(src_patches)
-        # start = time()
         cost_m = cost_matrix(self.model, src_patches, tars_patches)
-        # print(time() - start)
-        for i, patch_bbox in enumerate(bboxes):
-            for j, target in enumerate(targets):
-                iou_cost = iou(patch_bbox, [self.bboxes[target]])
-                area_bbox = patch_bbox[2:].prod()
-                area_candidate = self.bboxes[target][2:].prod()
-                area_rate = max([area_bbox / area_candidate, area_candidate / area_bbox])
-                if iou_cost < self.iou_th or area_rate > self.area_rate_th:
-                    cost_m[j, i] = 1e5  # 将不重叠的两个框的或面积差距大的距离置为1
-        # print(cost_m)
         return cost_m

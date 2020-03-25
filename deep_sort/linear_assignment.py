@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.utils.linear_assignment_ import linear_assignment
 from . import kalman_filter
 
-INFTY_COST = 1e+5
+INFTY_COST = 1e+5  # disregard
 
 
 def min_cost_matching(
@@ -54,8 +54,8 @@ def min_cost_matching(
     cost_matrix = distance_metric(
         tracks, detections, track_indices, detection_indices)
     # print(cost_matrix)
-    cost_matrix[cost_matrix > max_distance] = 1e+5  # ??何意
-    indices = linear_assignment(cost_matrix)  # Hungarian algorithm匈牙利算法
+    cost_matrix[cost_matrix > max_distance] = 1e+5
+    indices = linear_assignment(cost_matrix)  # Hungarian algorithm
     # print(indices)
 
     matches, unmatched_tracks, unmatched_detections = [], [], []
@@ -80,7 +80,7 @@ def matching_cascade(
         distance_metric, max_distance, cascade_depth, tracks, detections,
         track_indices=None, detection_indices=None):
     """Run matching cascade.
-    对已经确认的id进行匹配
+    match tracks those state is confirmed
     Parameters
     ----------
     distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray
@@ -115,7 +115,6 @@ def matching_cascade(
         * A list of unmatched detection indices.
 
     """
-    # 第一句不会被运行
     if track_indices is None:
         track_indices = list(range(len(tracks)))
     if detection_indices is None:
@@ -128,7 +127,7 @@ def matching_cascade(
         if len(unmatched_detections) == 0:  # No detections left
             break
 
-        # ??? track_indices_l 是什么，优先级?最近没匹配到检测框的优先
+        # 最近没匹配到检测框的优先
         track_indices_l = [
             k for k in track_indices
             if tracks[k].time_since_update == 1 + level
@@ -190,7 +189,5 @@ def gate_cost_matrix(
         track = tracks[track_idx]
         gating_distance = kf.gating_distance(
             track.mean, track.covariance, measurements, only_position)
-        # print("gate:", gating_distance)
-        # print("gate th:", gating_threshold)
         cost_matrix[row, gating_distance > gating_threshold] = gated_cost
     return cost_matrix

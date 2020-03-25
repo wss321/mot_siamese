@@ -17,7 +17,7 @@ from tools import iou
 import motmetrics as mm
 import pandas as pd
 import colorsys
-from tracker.siamese.model import ft_net
+from tracker.siamese.model import Siamese
 from tracker.track_utils import load_network
 
 # parameters
