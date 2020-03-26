@@ -1,8 +1,8 @@
 import os
 import numpy as np
-from PIL import Image
 from deep_sort.tracker import Tracker
-from deep_sort import nn_matching, extractor as gdet
+from deep_sort import nn_matching
+from tools import extractor as gdet
 from deep_sort.detection import Detection
 import cv2
 from tqdm import tqdm

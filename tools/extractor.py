@@ -56,6 +56,6 @@ def extract(image, boxes):
     for i, box in enumerate(boxes):
         patch = extract_image_patch(image, box, (256, 128))
         if patch is None:
-            print("WARNING: Failed to extract image patch: %s." % str(box))
+            raise "WARNING: Failed to extract image patch: %s." % str(box)
         image_patches.append(patch)
     return image_patches

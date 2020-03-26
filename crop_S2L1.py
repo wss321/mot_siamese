@@ -3,7 +3,7 @@ from tqdm import tqdm
 import colorsys
 import os
 import numpy as np
-from deep_sort import extractor as gdet
+from tools import extractor as gdet
 
 """将S2L1裁剪作为目标匹配"""
 rgb = lambda x: colorsys.hsv_to_rgb((x * 0.41) % 1, 1., 1. - (int(x * 0.41) % 4) / 5.)

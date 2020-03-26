@@ -1,6 +1,6 @@
 import numpy as np
 from deep_sort.tracker import Tracker
-from deep_sort.extractor import extract
+from tools.extractor import extract
 from deep_sort import nn_matching
 from deep_sort.detection import Detection
 import os
@@ -51,12 +51,14 @@ class MotLoader(object):
         for i in range(1, end_frame + 1):
             idx = raw[:, 0] == i
             bbox = raw[idx, 2:6]
+            feature = raw[idx, 7:]
             # bbox[:, 2:4] += bbox[:, 0:2]  # x1, y1, w, h -> x1, y1, x2, y2
-
             scores = raw[idx, 6]
             dets = []
+            j = 0
             for bb, s in zip(bbox, scores):
-                dets.append({'bbox': (bb[0], bb[1], bb[2], bb[3]), 'score': s})
+                dets.append({'bbox': (bb[0], bb[1], bb[2], bb[3]), 'score': s, "feature": feature[j]})
+                j += 1
             data.append(dets)
 
         return data
@@ -69,7 +71,9 @@ class MotLoader(object):
         return seqmaps_dir, seqmaps
 
     def detFromFrameID(self, detections, frame_id):
-        return [dets['bbox'] for dets in detections[frame_id - 1]], [dets['score'] for dets in detections[frame_id - 1]]
+        return [dets['bbox'] for dets in detections[frame_id - 1]], \
+               [dets['score'] for dets in detections[frame_id - 1]], \
+               [dets['feature'] for dets in detections[frame_id - 1]]
 
 
 def load_network(network, model_path):
@@ -84,10 +88,17 @@ def tracking(args):
     mot = MotLoader(args.data_dir)
     model = Siamese(args.num_classes)
     model = load_network(model, args.model_path)
-    for index, det_dir in enumerate(mot.map_dir):
-        seqs = os.listdir(det_dir + '/img1')
-        dets = mot.load_detections(det_dir + '/det/{}'.format(args.det_file))
-        seqinfo = det_dir + '/seqinfo.ini'
+    model = model.eval()
+    mkdirs(args.output_dir)
+    for index, seq_dir in enumerate(mot.map_dir):
+        imgs = os.listdir(seq_dir + '/img1')
+        if args.use_feature:
+            dets = np.load(os.path.join(args.data_dir, mot.sqm[index], "det",
+                                        mot.sqm[index] + "_{}.npy".format(args.det_file.split(".")[0])))
+            dets = mot.load_detections(dets)
+        else:
+            dets = mot.load_detections(seq_dir + '/det/{}'.format(args.det_file))
+        seqinfo = seq_dir + '/seqinfo.ini'
         with open(seqinfo, 'r') as info:
             lines = info.readlines()
             lines = [line.split('=') for line in lines]
@@ -103,33 +114,38 @@ def tracking(args):
             if not os.path.exists(video_dir):
                 os.makedirs(video_dir)
             out = cv2.VideoWriter(video_dir + mot.sqm[index] + '.avi', fourcc, 7, (w, h))
-        metric = nn_matching.SimilarityMetric(-np.log(args.sim_th), model, args.budget)
-        max_iou_distance = 0.99
-        if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index]:
-            max_iou_distance = 0.8
-        if args.crowed:
-            max_iou_distance = 0.8
-        tracker = Tracker(metric, img_shape=(w, h), max_age=args.age, max_iou_distance=max_iou_distance, mean=True)
+        metric = nn_matching.SimilarityMetric(-np.log(args.sim_th), copy.deepcopy(model), args.budget)
+
+        tracker = Tracker(metric, img_shape=(w, h), max_age=args.age, max_iou_distance=1 - args.iou_th, mean=True)
         logger.info("Tracking...")
         with open(args.output_dir + mot.sqm[index] + '.txt', 'w') as f:
-            seqs = tqdm(range(len(seqs)))
-            seqs.set_description(mot.sqm[index])
-            for seq in seqs:
-                frame_id = seq + 1
-                file = os.path.join(det_dir, img_dir, "{}".format(frame_id).zfill(6)) + ".jpg"
+            img_len = tqdm(range(1, len(imgs) + 1))
+            img_len.set_description(mot.sqm[index])
+            for frame_id in img_len:
+                file = os.path.join(seq_dir, img_dir, "{}".format(frame_id).zfill(6)) + ".jpg"
                 frame = cv2.imread(file)
-                bboxes, scores = mot.detFromFrameID(dets, frame_id)
-                if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index]:
+                bboxes, scores, features = mot.detFromFrameID(dets, frame_id)
+
+                if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index] or "poi" in args.det_file:
                     bboxes = [bboxes[i] for i, s in enumerate(scores) if s > 0.2]
+                    features = [features[i] for i, s in enumerate(scores) if s > 0.2]
                     scores = [s for i, s in enumerate(scores) if s > 0.2]
                 else:
                     bboxes = [bboxes[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
+                    features = [features[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
                     scores = [sigmoid(s) for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
-
-                rois = extract(frame, bboxes)
+                if args.use_feature and features[0].shape[0] > 0:
+                    rois = features
+                else:
+                    rois = extract(frame, bboxes)
+                    # with torch.no_grad():
+                    #     from deep_sort.nn_matching import data_transforms
+                    #     rois = np.asarray([data_transforms(src).numpy() for src in rois])
+                    #     rois = torch.Tensor(rois).cuda()
+                    #     f_rois = model.get_feature(rois).cpu().data.numpy()
+                    #     print("rois", f_rois)
                 detections = [Detection(bbox_with_roi[0], scores[idx], bbox_with_roi[1]) for idx, bbox_with_roi
-                              in
-                              enumerate(zip(bboxes, rois))]
+                              in enumerate(zip(bboxes, rois))]
                 tracker.predict()
                 tracks_dets = tracker.update(detections)
                 frame_copy = copy.copy(frame)
@@ -170,6 +186,7 @@ def tracking(args):
             out.release()
         cv2.destroyAllWindows()
         logger.info("Track Done.")
+        eval(args, [mot.sqm[index]])
 
 
 def mkdirs(path):

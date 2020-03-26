@@ -3,6 +3,13 @@ import numpy as np
 import torch
 from torchvision.transforms import transforms
 
+data_transforms = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize((256, 128), interpolation=3),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
 
 def iou(bbox, candidates):
     """Computer intersection over union.
@@ -137,6 +144,56 @@ def _nn_cosine_distance(x, y, mean=True):
     return distances.min(axis=0)
 
 
+def cost_matrix(model, srcs, targets):
+    """
+
+    :param model:
+    :param srcs: feature
+    :param targets: feature
+    :return:
+    """
+    # tensor([[0.0327, 0.2319, 0.1991,  ..., 0.2007, 0.1880, 0.1487],
+    #         [0.1831, 0.2500, 0.0420,  ..., 0.0902, 0.1252, 0.1754],
+    #         [0.2254, 0.2988, 0.2030,  ..., 0.0834, 0.1468, 0.1156]],
+    #        device='cuda:0')
+    # print(len(targets[0]))
+    # import cv2
+    # cv2.waitKey(2000)
+    # print(targets)
+    cost = np.zeros((len(targets), len(srcs)))
+    if targets[0][0].shape[0] == 2048:
+        with torch.no_grad():
+            f_srcs = torch.Tensor(srcs).cuda()
+            f_targets = []
+            for tars in targets:
+                tars = torch.Tensor(tars).cuda()
+                f_targets.append(tars)
+            for i, f_src in enumerate(f_srcs):
+                for j, f_target in enumerate(f_targets):
+                    f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
+                    sim = model.verify(f_src_temp, f_target)
+                    sim = sim.mean(dim=0).cpu().data.numpy()[1]
+                    cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
+            return cost
+    with torch.no_grad():
+        srcs = np.asarray([data_transforms(src).numpy() for src in srcs])
+        srcs = torch.Tensor(srcs).cuda()
+        f_srcs = model.get_feature(srcs)
+        f_targets = []
+        for tars in targets:
+            tars = np.asarray([data_transforms(tar).numpy() for tar in tars])
+            tars = torch.Tensor(tars).cuda()
+            f_targets.append(model.get_feature(tars))
+        for i, f_src in enumerate(f_srcs):
+            for j, f_target in enumerate(f_targets):
+                f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
+                sim = model.verify(f_src_temp, f_target)
+                sim = sim.mean(dim=0).cpu().data.numpy()[1]
+                cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
+
+    return cost
+
+
 class SimilarityMetric(object):
     """
     A nearest neighbor distance metric that, for each target, returns
@@ -213,40 +270,6 @@ class SimilarityMetric(object):
             `targets[i]` and `features[j]`.
 
         """
-
-        def cost_matrix(model, srcs, targets):
-            """
-
-            :param model:
-            :param srcs: img
-            :param targets: img
-            :return:
-            """
-            data_transforms = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize((256, 128), interpolation=3),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            ])
-
-            cost = np.zeros((len(targets), len(srcs)))
-            with torch.no_grad():
-                srcs = np.asarray([data_transforms(src).numpy() for src in srcs])
-                srcs = torch.Tensor(srcs).cuda()
-                f_srcs = model.get_feature(srcs)
-                f_targets = []
-                for tars in targets:
-                    tars = np.asarray([data_transforms(tar).numpy() for tar in tars])
-                    tars = torch.Tensor(tars).cuda()
-                    f_targets.append(model.get_feature(tars))
-                for i, f_src in enumerate(f_srcs):
-                    for j, f_target in enumerate(f_targets):
-                        f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
-                        sim = model.verify(f_src_temp, f_target)
-                        sim = sim.mean(dim=0).cpu().data.numpy()[1]
-                        cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
-
-            return cost
 
         # get image patches to compute similarity
         if mean:
