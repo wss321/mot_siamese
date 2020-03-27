@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 from torchvision.transforms import transforms
+from .linear_assignment import INFTY_COST
 
 data_transforms = transforms.Compose([
     transforms.ToPILImage(),
@@ -144,7 +145,7 @@ def _nn_cosine_distance(x, y, mean=True):
     return distances.min(axis=0)
 
 
-def cost_matrix(model, srcs, targets):
+def cost_matrix(model, srcs, targets, cost):
     """
 
     :param model:
@@ -152,16 +153,10 @@ def cost_matrix(model, srcs, targets):
     :param targets: feature
     :return:
     """
-    # tensor([[0.0327, 0.2319, 0.1991,  ..., 0.2007, 0.1880, 0.1487],
-    #         [0.1831, 0.2500, 0.0420,  ..., 0.0902, 0.1252, 0.1754],
-    #         [0.2254, 0.2988, 0.2030,  ..., 0.0834, 0.1468, 0.1156]],
-    #        device='cuda:0')
-    # print(len(targets[0]))
-    # import cv2
-    # cv2.waitKey(2000)
-    # print(targets)
-    cost = np.zeros((len(targets), len(srcs)))
-    if targets[0][0].shape[0] == 2048:
+    assert cost.shape == (len(targets), len(srcs)), "shape doed not match"
+    # cost = np.zeros((len(targets), len(srcs)))
+    feature_shape = targets[0][0].shape[0]
+    if feature_shape == 2048:
         with torch.no_grad():
             f_srcs = torch.Tensor(srcs).cuda()
             f_targets = []
@@ -170,6 +165,8 @@ def cost_matrix(model, srcs, targets):
                 f_targets.append(tars)
             for i, f_src in enumerate(f_srcs):
                 for j, f_target in enumerate(f_targets):
+                    if cost[j, i] == INFTY_COST:
+                        continue
                     f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
                     sim = model.verify(f_src_temp, f_target)
                     sim = sim.mean(dim=0).cpu().data.numpy()[1]
@@ -251,7 +248,7 @@ class SimilarityMetric(object):
                 self.samples[target] = self.samples[target][-self.budget:]
         self.samples = {k: self.samples[k] for k in active_targets}
 
-    def distance(self, src_patches, targets, mean=True):
+    def distance(self, src_patches, targets, mean=True, cost=None):
         """Compute distance between features and targets.
 
         Parameters
@@ -276,5 +273,5 @@ class SimilarityMetric(object):
             tars_patches = [self.samples[target] for i, target in enumerate(targets)]
         else:
             tars_patches = [[self.samples[target][-1]] for i, target in enumerate(targets)]
-        cost_m = cost_matrix(self.model, src_patches, tars_patches)
+        cost_m = cost_matrix(self.model, src_patches, tars_patches, cost)
         return cost_m

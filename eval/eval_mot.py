@@ -14,6 +14,7 @@ from tqdm import tqdm
 import colorsys
 from tracker.siamese.model import Siamese
 import copy
+from deep_sort.preprocessing import non_max_suppression
 
 rgb = lambda x: colorsys.hsv_to_rgb((x * 0.41) % 1, 1., 1. - (int(x * 0.41) % 4) / 5.)
 colors = lambda x: (int(rgb(x)[0] * 255), int(rgb(x)[1] * 255), int(rgb(x)[2] * 255))
@@ -51,7 +52,10 @@ class MotLoader(object):
         for i in range(1, end_frame + 1):
             idx = raw[:, 0] == i
             bbox = raw[idx, 2:6]
-            feature = raw[idx, 7:]
+            if raw.shape[1] == 2058:
+                feature = raw[idx, 10:]
+            else:
+                feature = raw[idx, 7:]
             # bbox[:, 2:4] += bbox[:, 0:2]  # x1, y1, w, h -> x1, y1, x2, y2
             scores = raw[idx, 6]
             dets = []
@@ -71,9 +75,12 @@ class MotLoader(object):
         return seqmaps_dir, seqmaps
 
     def detFromFrameID(self, detections, frame_id):
-        return [dets['bbox'] for dets in detections[frame_id - 1]], \
-               [dets['score'] for dets in detections[frame_id - 1]], \
-               [dets['feature'] for dets in detections[frame_id - 1]]
+        try:
+            return [dets['bbox'] for dets in detections[frame_id - 1]], \
+                   [dets['score'] for dets in detections[frame_id - 1]], \
+                   [dets['feature'] for dets in detections[frame_id - 1]]
+        except:
+            return None, None, None
 
 
 def load_network(network, model_path):
@@ -125,16 +132,20 @@ def tracking(args):
                 file = os.path.join(seq_dir, img_dir, "{}".format(frame_id).zfill(6)) + ".jpg"
                 frame = cv2.imread(file)
                 bboxes, scores, features = mot.detFromFrameID(dets, frame_id)
-
+                if bboxes is None:
+                    continue
+                keep = non_max_suppression(np.asarray(bboxes), max_bbox_overlap=args.overlap_th,
+                                           scores=np.asarray(scores))
                 if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index] or "poi" in args.det_file:
-                    bboxes = [bboxes[i] for i, s in enumerate(scores) if s > 0.2]
-                    features = [features[i] for i, s in enumerate(scores) if s > 0.2]
-                    scores = [s for i, s in enumerate(scores) if s > 0.2]
+                    bboxes = [bboxes[i] for i, s in enumerate(scores) if s > 0.2 and i in keep]
+                    features = [features[i] for i, s in enumerate(scores) if s > 0.2 and i in keep]
+                    scores = [s for i, s in enumerate(scores) if s > 0.2 and i in keep]
                 else:
-                    bboxes = [bboxes[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
-                    features = [features[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
-                    scores = [sigmoid(s) for i, s in enumerate(scores) if sigmoid(s) > args.score_th]
-                if args.use_feature and features[0].shape[0] > 0:
+                    bboxes = [bboxes[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th and i in keep]
+                    features = [features[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th and i in keep]
+                    scores = [sigmoid(s) for i, s in enumerate(scores) if sigmoid(s) > args.score_th and i in keep]
+                # print(len(features))
+                if args.use_feature and len(features) > 0:
                     rois = features
                 else:
                     rois = extract(frame, bboxes)
@@ -245,5 +256,6 @@ def eval(args, seqs=None):
         namemap=mm.io.motchallenge_metric_names
     )
     with open(os.path.join(result_root, "eval_result.txt"), 'a') as f:
+        f.write(str(vars(args)) + "\n")
         f.write(strsummary + "\n")
     print(strsummary)

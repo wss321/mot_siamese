@@ -72,8 +72,11 @@ def generate_detections(args):
             rois = extract(bgr_image, rows[:, 2:6].copy())
             # print(rois)
             # cv2.imshow("", rois[0])
-            # cv2.waitKey(2000)
+            # cv2.waitKey(1)
             with torch.no_grad():
+                if len(rois) == 0:
+                    print("length is 0")
+                    continue
                 rois = np.asarray([data_transforms(src).numpy() for src in rois])
                 rois = torch.Tensor(rois).cuda()
                 f_rois = model.get_feature(rois).cpu().data.numpy()

@@ -106,10 +106,14 @@ class Tracker(object):
             patch = np.array([dets[i].patch for i in detection_indices])
             # bboxes = np.array([dets[i].tlwh for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
-            cost_matrix = self.metric.distance(patch, targets, self.mean)
+            cost_matrix = np.zeros((len(targets), len(patch)))
             cost_matrix = linear_assignment.gate_cost_matrix(
                 self.kf, cost_matrix, tracks, dets, track_indices,
                 detection_indices)
+            cost_matrix = self.metric.distance(patch, targets, self.mean, cost_matrix)
+            # cost_matrix = linear_assignment.gate_cost_matrix(
+            #     self.kf, cost_matrix, tracks, dets, track_indices,
+            #     detection_indices)
             return cost_matrix
 
         # Split track set into confirmed and unconfirmed tracks.
@@ -118,7 +122,6 @@ class Tracker(object):
         unconfirmed_tracks = [
             i for i, t in enumerate(self.tracks) if not t.is_confirmed()]
         # print("confirmed_tracks{}\tunconfirmed_tracks{}".format(confirmed_tracks, unconfirmed_tracks))
-        # 级联匹配已经确认的id
         # 分配id
         # Associate confirmed tracks using appearance features.
         matches_a, unmatched_tracks_a, unmatched_detections = \

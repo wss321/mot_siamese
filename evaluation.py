@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--sim_th', default=0.9, type=float, help='similarity threshold')
     parser.add_argument('--iou_th', default=0.01, type=float, help='iou matching disregard threshold,0~1')
     parser.add_argument('--budget', default=32, type=int, help='max number of image patches to compute similarity')
+    parser.add_argument('--overlap_th', default=1, type=float, help='nos threshhold')
     args = parser.parse_args()
     tracking(args)
     eval(args)
@@ -28,3 +29,4 @@ if __name__ == '__main__':
     # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L1 --model_path ./tracker/siamese/net_last.pth --score_th 0.4 --age 20 --sim_th 0.9 --budget 16 --save_video
     # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L2 --score_th 0.0 --age 40 --sim_th 0.9 --budget 16
     # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L3 --score_th 0.0 --age 40 --sim_th 0.9 --budget 16
+    # python evaluation.py --show --show_kalman --data_dir ../datasets/MOT16/train --score_th 0.4 --age 20 --sim_th 0.9 --budget 16 --use_feature --save_video
