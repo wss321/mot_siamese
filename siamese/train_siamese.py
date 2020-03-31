@@ -17,9 +17,9 @@ import matplotlib.pyplot as plt
 import time
 import os
 # from reid_sampler import StratifiedSampler
-from model import ft_net
-from random_erasing import RandomErasing
-from tripletfolder import TripletFolder
+from .model import Siamese
+from .random_erasing import RandomErasing
+from .tripletfolder import TripletFolder
 import yaml
 from shutil import copyfile
 
@@ -288,7 +288,7 @@ ax1 = fig.add_subplot(122, title="top1err")
 #
 # Load a pretrainied model and reset final fully connected layer.
 #
-model = ft_net(len(class_names))
+model = Siamese(len(class_names))
 
 print(model)
 

@@ -12,7 +12,7 @@ from tools.log import logger
 from tools.evaluation import Evaluator
 from tqdm import tqdm
 import colorsys
-from tracker.siamese.model import Siamese
+from siamese.model import Siamese
 import copy
 from deep_sort.preprocessing import non_max_suppression
 
@@ -30,7 +30,7 @@ class MotLoader(object):
         self.main_dir = main_dir
         self.map_dir, self.sqm = self.__get_seqmaps()
 
-    def load_detections(self, detections):
+    def load_detections(self, det_file):
         """
         Loads detections stored in a mot-challenge like formatted CSV or numpy array (fieldNames = ['frame', 'id', 'x', 'y',
         'w', 'h', 'score']).
@@ -41,12 +41,12 @@ class MotLoader(object):
         """
 
         data = []
-        if type(detections) is str:
-            raw = np.genfromtxt(detections, delimiter=',', dtype=np.float32)
+        if type(det_file) is str:
+            raw = np.genfromtxt(det_file, delimiter=',', dtype=np.float32)
         else:
             # assume it is an array
-            assert isinstance(detections, np.ndarray), "only numpy arrays or *.csv paths are supported as detections."
-            raw = detections.astype(np.float32)
+            assert isinstance(det_file, np.ndarray), "only numpy arrays or *.csv paths are supported as detections."
+            raw = det_file.astype(np.float32)
 
         end_frame = int(np.max(raw[:, 0]))
         for i in range(1, end_frame + 1):
@@ -136,15 +136,19 @@ def tracking(args):
                     continue
                 keep = non_max_suppression(np.asarray(bboxes), max_bbox_overlap=args.overlap_th,
                                            scores=np.asarray(scores))
+                # _, keep = soft(np.asarray(bboxes), np.asarray(scores))
+                # keep = remove_overlay(np.asarray(bboxes))
+                # keep = soft_nms(np.asarray(bboxes), scores=np.asarray(scores), iou_th=args.overlap_th)
                 if "RCNN" in mot.sqm[index] or "SDP" in mot.sqm[index] or "poi" in args.det_file:
-                    bboxes = [bboxes[i] for i, s in enumerate(scores) if s > 0.2 and i in keep]
-                    features = [features[i] for i, s in enumerate(scores) if s > 0.2 and i in keep]
-                    scores = [s for i, s in enumerate(scores) if s > 0.2 and i in keep]
+                    bboxes = [bboxes[i] for i, s in enumerate(scores) if s > args.score_th and i in keep]
+                    features = [features[i] for i, s in enumerate(scores) if s > args.score_th and i in keep]
+                    scores = [s for i, s in enumerate(scores) if s > args.score_th and i in keep]
                 else:
                     bboxes = [bboxes[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th and i in keep]
                     features = [features[i] for i, s in enumerate(scores) if sigmoid(s) > args.score_th and i in keep]
                     scores = [sigmoid(s) for i, s in enumerate(scores) if sigmoid(s) > args.score_th and i in keep]
                 # print(len(features))
+                # print(bboxes)
                 if args.use_feature and len(features) > 0:
                     rois = features
                 else:
@@ -197,7 +201,7 @@ def tracking(args):
             out.release()
         cv2.destroyAllWindows()
         logger.info("Track Done.")
-        eval(args, [mot.sqm[index]])
+        # eval(args, [mot.sqm[index]])
 
 
 def mkdirs(path):

@@ -7,7 +7,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', default='./output/', type=str, help='./test_data')
     parser.add_argument('--det_file', default='det.txt', type=str, help='detection file')
     parser.add_argument('--e_type', default='train', type=str, help='type of running')
-    parser.add_argument('--model_path', default=r"E:\PyProjects\MOT\tracker\siamese\net_last.pth", type=str,
+    parser.add_argument('--model_path', default=r"E:\PyProjects\MOT\siamese\net_last.pth", type=str,
                         help='siamese model path')
     parser.add_argument('--show', action='store_true', help='show tracking result')
     parser.add_argument('--use_feature', action='store_true', help='use detection with featrue file')
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     eval(args)
     # python evaluation.py --show --show_kalman --data_dir ../datasets/MOT16/train --score_th 0.3 --age 40 --sim_th 0.9 --budget 16
     # python evaluation.py --show --show_kalman --data_dir ../datasets/MOT17/train --score_th 0.3 --age 40 --sim_th 0.9 --budget 16
-    # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L1 --model_path ./tracker/siamese/net_last.pth --score_th 0.4 --age 20 --sim_th 0.9 --budget 16 --save_video
+    # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L1 --model_path ./siamese/net_last.pth --score_th 0.4 --age 20 --sim_th 0.9 --budget 16 --save_video
     # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L2 --score_th 0.0 --age 40 --sim_th 0.9 --budget 16
     # python evaluation.py --show --show_kalman --data_dir ../datasets/Crowd_PETS09/S2/L3 --score_th 0.0 --age 40 --sim_th 0.9 --budget 16
     # python evaluation.py --show --show_kalman --data_dir ../datasets/MOT16/train --score_th 0.4 --age 20 --sim_th 0.9 --budget 16 --use_feature --save_video

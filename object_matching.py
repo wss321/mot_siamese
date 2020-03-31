@@ -5,13 +5,12 @@ from __future__ import print_function, division
 import argparse
 import torch
 from torch.autograd import Variable
-import torch.backends.cudnn as cudnn
-from torchvision import datasets, models, transforms
+from torchvision import transforms
 import cv2
 import os
 
 import yaml
-from tracker.siamese.model import Siamese
+from siamese.model import Siamese
 from tracker.track_utils import load_network
 import numpy as np
 
