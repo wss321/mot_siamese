@@ -75,7 +75,8 @@ class Tracker(object):
         matches_td = []
         for track_idx, detection_idx in matches:
             self.tracks[track_idx].update(self.kf, detections[detection_idx], self.now_frame_id)
-            matches_td.append([self.tracks[track_idx].track_id, detection_idx])
+            if self.tracks[track_idx].is_confirmed():
+                matches_td.append([self.tracks[track_idx].track_id, detection_idx])
         for track_idx in unmatched_tracks:
             self.tracks[track_idx].mark_missed()  # 删掉或者不更新匹配
 
@@ -102,37 +103,33 @@ class Tracker(object):
 
     def _match_cascade(self, detections):
 
-        def gate_area(tracks, detections, track_indices=None,
+        def gate_area(tracks, detections, cost_matirx, track_indices=None,
                       detection_indices=None):
             if track_indices is None:
                 track_indices = np.arange(len(tracks))
             if detection_indices is None:
                 detection_indices = np.arange(len(detections))
 
-            area_gate = np.zeros((len(track_indices), len(detection_indices)))
             area_candidates = np.asarray([detections[i].tlwh for i in detection_indices])[:, 2:].prod(axis=1)
             for row, track_idx in enumerate(track_indices):
                 area_bbox = tracks[track_idx].last_bbox[2:].prod()
                 for column, ac in enumerate(area_candidates):
-                    if max(area_bbox / ac, ac / area_bbox) > 4:
-                        area_gate[row, column] = linear_assignment.INFTY_COST
-
-            return area_gate
+                    if max(area_bbox / ac, ac / area_bbox) > 9:
+                        cost_matirx[row, column] = linear_assignment.INFTY_COST
+            return cost_matirx
 
         def gated_metric(tracks, dets, track_indices, detection_indices):
             patch = np.array([dets[i].patch for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
-            gate_matrix = gate_area([tracks[i] for i in track_indices], detections,
-                                    detection_indices=detection_indices)
+
             cost_matrix = np.zeros((len(targets), len(patch)))
+
+            cost_matrix = gate_area([tracks[i] for i in track_indices], detections, cost_matrix,
+                                    detection_indices=detection_indices)
             cost_matrix = linear_assignment.gate_cost_matrix(
                 self.kf, cost_matrix, tracks, dets, track_indices,
                 detection_indices)
             cost_matrix = self.metric.distance(patch, targets, self.mean, cost_matrix)
-            # cost_matrix = linear_assignment.gate_cost_matrix(
-            #     self.kf, cost_matrix, tracks, dets, track_indices,
-            #     detection_indices)
-            cost_matrix = cost_matrix + gate_matrix
             return cost_matrix
 
         # Split track set into confirmed and unconfirmed tracks.

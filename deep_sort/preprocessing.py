@@ -244,38 +244,174 @@ def soft(dets, confidence=None, ax=None):
     return dets[keep], keep
 
 
-def remove_overlay(boxes):
+def ioa(bbox, candidate):
+    bbox_tl, bbox_br = bbox[:2], bbox[:2] + bbox[2:]
+    candidates_tl = candidate[:2]
+    candidates_br = candidate[:2] + candidate[2:]
+
+    tl = np.c_[np.maximum(bbox_tl[0], candidates_tl[0]),
+               np.maximum(bbox_tl[1], candidates_tl[1])]
+    br = np.c_[np.minimum(bbox_br[0], candidates_br[0]),
+               np.minimum(bbox_br[1], candidates_br[1])]
+    wh = np.maximum(0., br - tl)
+
+    area_intersection = wh.prod()
+    # area_bbox = bbox[2:].prod()
+    area_candidates = candidate[2:].prod()
+    return area_intersection / area_candidates
+
+
+def remove_area(boxes, ratio=[1.8, 0.2]):
     x1 = boxes[:, 0]
     y1 = boxes[:, 1]
     x2 = boxes[:, 2] + boxes[:, 0]
     y2 = boxes[:, 3] + boxes[:, 1]
-    # areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    index = [i for i in range(len(boxes))]
-    # overlay = np.zeros((len(boxes), len(boxes)), dtype=int)
-    remove = []
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    mean_area = areas.mean()
+    keep = []
     for i in range(len(boxes)):
-        for j in range(len(boxes)):
-            if i >= j:
+        if areas[i] > mean_area * ratio[0] or areas[i] < mean_area * ratio[1]:
+            continue
+        keep.append(i)
+    return keep
+
+
+def remove_h(boxes, thresh=30):
+    return np.where(boxes[:, 3] > thresh)[0]
+
+
+def remove_overlay(boxes, thresh=0.8):
+    if len(boxes) == 0:
+        return []
+    remain = [i for i in range(len(boxes))]
+    keep = []
+    while len(boxes) > 0:
+        x1 = boxes[:, 0]
+        y1 = boxes[:, 1]
+        x2 = boxes[:, 2] + boxes[:, 0]
+        y2 = boxes[:, 3] + boxes[:, 1]
+        areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+        max_now = np.argmax(areas)
+        L = len(boxes)
+        flag = 0
+        for j in range(L):
+            # if y1[max_now] < y1[j] and x1[max_now] < x1[j] and x2[max_now] > x2[j] and y2[max_now] > y2[j]:
+            #     boxes = np.delete(boxes, max_now, axis=0)
+            #     del remain[max_now]
+            #     flag = 1
+            #     break
+            if j == max_now:
                 continue
-            if y1[i] < y1[j] and x1[i] < x1[j] and x2[i] > x2[j] and y2[i] > y2[j]:
-                remove.append(i)
-    # print(remove)
-    return set(index) - set(remove)
+            oa = ioa(boxes[max_now], boxes[j])
+            if oa > thresh:
+                boxes = np.delete(boxes, max_now, axis=0)
+                del remain[max_now]
+                flag = 1
+                break
+        if flag == 0:
+            boxes = np.delete(boxes, max_now, axis=0)
+            keep.append(remain[max_now])
+            del remain[max_now]
+    return keep
+
+    # return set(index) - set(remove)
+
+
+import numpy as np
+
+
+def drawline(img, pt1, pt2, color, thickness=1, style='dotted', gap=10):
+    dist = ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2) ** .5
+    pts = []
+    for i in np.arange(0, dist, gap):
+        r = i / dist
+        x = int((pt1[0] * (1 - r) + pt2[0] * r) + .5)
+        y = int((pt1[1] * (1 - r) + pt2[1] * r) + .5)
+        p = (x, y)
+        pts.append(p)
+
+    if style == 'dotted':
+        for p in pts:
+            cv2.circle(img, p, thickness, color, -1)
+    else:
+        s = pts[0]
+        e = pts[0]
+        i = 0
+        for p in pts:
+            s = e
+            e = p
+            if i % 2 == 1:
+                cv2.line(img, s, e, color, thickness)
+            i += 1
+
+
+def drawpoly(img, pts, color, thickness=1, style='dotted', ):
+    s = pts[0]
+    e = pts[0]
+    pts.append(pts.pop(0))
+    for p in pts:
+        s = e
+        e = p
+        drawline(img, s, e, color, thickness, style)
+
+
+def drawrect(img, pt1, pt2, color, thickness=1, style='dotted'):
+    pts = [pt1, (pt2[0], pt1[1]), pt2, (pt1[0], pt2[1])]
+    drawpoly(img, pts, color, thickness, style)
 
 
 if __name__ == '__main__':
-    boxes = np.array([[655.79, 413.27, 120.26, 362.77],
-                      [1247.5, 441.39, 36.321, 110.96],
-                      [566.69, 453.55, 112.14, 338.41],
-                      [755.53, 446.86, 84.742, 256.23],
-                      [513.16, 473.76, 97.492, 294.47],
-                      [770.33, 363.04, 112.14, 338.41],
-                      [673., 321., 159., 479.],
-                      [1014.4, 449.63, 25.39, 78.17],
-                      [1097., 433., 39., 119.],
-                      [1001., 441., 39., 119.],
-                      [549.75, 412.56, 170.48, 513.45]], dtype=np.float32)
+    frame_id = 115
+    img = f"E:/PyProjects/datasets/MOT16/train/MOT16-02/img1/000{frame_id}.jpg"
+    det_file = r"E:\PyProjects\datasets\MOT16\train\MOT16-02\det\det.txt"
+    import cv2
+    from copy import copy
 
+    img = cv2.imread(img)
+    img0 = copy(img)
+    raw = np.genfromtxt(det_file, delimiter=',', dtype=np.float32)
+    idx = raw[:, 0] == frame_id
+    boxes = raw[idx, 2:6]
+    boxes0 = copy(boxes)
+    # boxes0[:, 2:] += boxes0[:, :2]
+
+    keep1 = remove_overlay(boxes0, 0.70)
+    print(keep1)
+
+    boxes = np.asarray([boxes0[i] for i in keep1])
+    keep = remove_area(boxes, [100, 0])
+    keep2 = [keep1[i] for i in keep]
+    print(keep2)
+
+    boxes = np.asarray([boxes0[i] for i in keep2])
+    keep = remove_h(boxes, 30)
+    keep3 = [keep2[i] for i in keep]
+    print(keep3)
+
+    remove = set([i for i in range(len(boxes0))]) - set(keep3)
+    print(remove)
+    boxes = np.asarray([boxes0[i] for i in keep3])
+    boxes[:, 2:] += boxes[:, :2]
+    for bbox in boxes:
+        cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])),
+                      (0, 255, 0), 2)
+
+    boxes0[:, 2:] += boxes0[:, :2]
+    for re in remove:
+        drawrect(img, (int(boxes0[re][0]), int(boxes0[re][1])), (int(boxes0[re][2]), int(boxes0[re][3])),
+                 (0, 0, 255), 3, style='dotted')
+
+    # for bbox in boxes0:
+    #     cv2.rectangle(img0, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])),
+    #                   (0, 255, 0), 2)
+    #
+    # img0 = cv2.resize(img0, (960, 540))
+    img = cv2.resize(img, (960, 540))
+    # img = np.vstack([img0, img])
+    cv2.imwrite(f"../output/remove_overlay_{frame_id}.jpg", img)
+    cv2.imshow("", img)
+    if cv2.waitKey(1000) & 0xFF == ord('q'):
+        pass
     # print('greedy result:')
     # print(py_greedy_nms(boxes, 0.7))
     # print('soft nms result:')
@@ -283,4 +419,4 @@ if __name__ == '__main__':
     # print('soft nms result:')
     # print(soft_nms(boxes, method='linear'))
 
-    print(remove_overlay(boxes))
+    # print(remove_overlay(boxes))

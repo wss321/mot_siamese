@@ -36,7 +36,7 @@ parser.add_argument('--train_all', action='store_true', help='use all training d
 parser.add_argument('--color_jitter', action='store_true', help='use color jitter in training')
 parser.add_argument('--batchsize', default=32, type=int, help='batchsize')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
+parser.add_argument('--alpha', default=1.0, type=float, help='weight of bce loss')
 parser.add_argument('--erasing_p', default=0.0, type=float, help='Random Erasing probability, in [0,1]')
 
 opt = parser.parse_args()
@@ -138,9 +138,9 @@ def train_model(model, criterion1, criterion2, optimizer, scheduler, num_epochs=
                 model.train(False)  # Set model to evaluate mode
 
             running_loss = 0.0
-            running_verif_loss = 0.0
-            running_corrects = 0.0
-            running_verif_corrects = 0.0
+            running_bce_loss = 0.0
+            running_ide_corrects = 0.0
+            running_bce_corrects = 0.0
             # Iterate over data.
             for data in dataloaders[phase]:
                 # get the inputs
@@ -194,12 +194,12 @@ def train_model(model, criterion1, criterion2, optimizer, scheduler, num_epochs=
                 _, preds = torch.max(score.data, 1)
                 _, p_preds = torch.max(p_score.data, 1)
                 _, n_preds = torch.max(n_score.data, 1)
-                loss_id, loss_verif = 0, 0
+                loss_ide, loss_bce = 0, 0
                 for i in range(num_part):
-                    loss_id += criterion1(ide_part[i], labels)
-                    loss_verif += (criterion2(p_bce_part[i], labels_1) + criterion2(n_bce_part[i],
-                                                                                    labels_0)) * 0.5 * opt.alpha
-                loss = loss_id + loss_verif
+                    loss_ide += criterion1(ide_part[i], labels)
+                    loss_bce += (criterion2(p_bce_part[i], labels_1) +
+                                 criterion2(n_bce_part[i], labels_0)) * 0.5
+                loss = loss_ide + opt.alpha * loss_bce
 
                 # backward + optimize only if in training phase
                 if phase == 'train':
@@ -208,23 +208,23 @@ def train_model(model, criterion1, criterion2, optimizer, scheduler, num_epochs=
                 # statistics
                 if int(version[0]) > 0 or int(version[2]) > 3:  # for the new version like 0.4.0 and 0.5.0
                     running_loss += loss.item()  # * opt.batchsize
-                    running_verif_loss += loss_verif.item()  # * opt.batchsize
+                    running_bce_loss += loss_bce.item()  # * opt.batchsize
                 else:  # for the old version like 0.3.0 and 0.3.1
                     running_loss += loss.data[0]
-                    running_verif_loss += loss_verif.data[0]
-                running_corrects += float(torch.sum(preds == labels.data))
-                running_verif_corrects += float(torch.sum(p_preds == 1)) + float(torch.sum(n_preds == 0))
+                    running_bce_loss += loss_bce.data[0]
+                running_ide_corrects += float(torch.sum(preds == labels.data))
+                running_bce_corrects += float(torch.sum(p_preds == 1)) + float(torch.sum(n_preds == 0))
 
             datasize = dataset_sizes['train'] // opt.batchsize * opt.batchsize
             epoch_loss = running_loss / datasize
-            epoch_verif_loss = running_verif_loss / datasize
-            epoch_acc = running_corrects / datasize
-            epoch_verif_acc = running_verif_corrects / (2 * datasize)
+            epoch_bce_loss = running_bce_loss / datasize
+            epoch_acc = running_ide_corrects / datasize
+            epoch_bce_acc = running_bce_corrects / (2 * datasize)
 
             end = time.time()
 
-            print('{} Time cost {} Loss: {:.4f} Loss_verif: {:.4f}  Acc: {:.4f} Verif_Acc: {:.4f} '.format(
-                phase, end - start, epoch_loss, epoch_verif_loss, epoch_acc, epoch_verif_acc))
+            print('{} Time cost {:.4f} Loss: {:.4f} Loss_verif: {:.4f}  Acc: {:.4f} Verif_Acc: {:.4f} '.format(
+                phase, end - start, epoch_loss, epoch_bce_loss, epoch_acc, epoch_bce_acc))
 
             y_loss[phase].append(epoch_loss)
             y_err[phase].append(1.0 - epoch_acc)
@@ -278,7 +278,7 @@ def save_network(network, epoch_label):
 # ---------------------------
 x_epoch = []
 fig = plt.figure()
-ax0 = fig.add_subplot(121, title="triplet_loss")
+ax0 = fig.add_subplot(121, title="loss")
 ax1 = fig.add_subplot(122, title="top1err")
 
 # Train

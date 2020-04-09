@@ -12,7 +12,7 @@ class TripletFolder(datasets.ImageFolder):
     def __init__(self, root, transform):
         super(TripletFolder, self).__init__(root, transform)
         targets = np.asarray([s[1] for s in self.samples])
-        self.targets = targets
+        self.targets = targets   
         # cams = []
         # for s in self.samples:
         #     cams.append(self._get_cam_id(s[0]))
@@ -48,6 +48,7 @@ class TripletFolder(datasets.ImageFolder):
         sample = self.loader(path)
         pos = self.loader(pos_path[0])
         neg = self.loader(neg_path[0])
+        neg_label = neg_path[1]
 
         if self.transform is not None:
             sample = self.transform(sample)
@@ -57,4 +58,28 @@ class TripletFolder(datasets.ImageFolder):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return sample, target, pos, neg
+        return sample, target, pos, neg, neg_label
+
+
+if __name__ == "__main__":
+    from torchvision import transforms
+    import torch
+    import os
+
+    data_dir = 'E:/PyProjects/datasets/Market/pytorch'
+    transform_list = [
+        # transforms.RandomResizedCrop(size=128, scale=(0.75,1.0), ratio=(0.75,1.3333), interpolation=3), #Image.BICUBIC)
+        transforms.Resize((256, 128), interpolation=3),
+        transforms.Pad(10),
+        transforms.RandomCrop((256, 128)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]
+    T = TripletFolder(os.path.join(data_dir, 'train_all'),
+                      transforms.Compose(transform_list))
+    D = torch.utils.data.DataLoader(T, batch_size=16,
+                                    shuffle=True, num_workers=8)
+    D = iter(D)
+    inputs, labels, pos, neg, neg_label = next(D)
+    print(neg_label)

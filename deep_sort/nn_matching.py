@@ -145,7 +145,7 @@ def _nn_cosine_distance(x, y, mean=True):
     return distances.min(axis=0)
 
 
-def cost_matrix(model, srcs, targets, cost):
+def cost_matrix(model, srcs, targets, cost, alpha=0.03):
     """
 
     :param model:
@@ -153,7 +153,7 @@ def cost_matrix(model, srcs, targets, cost):
     :param targets: feature
     :return:
     """
-    assert cost.shape == (len(targets), len(srcs)), "shape doed not match"
+    assert cost.shape == (len(targets), len(srcs)), "shape does not match"
     # cost = np.zeros((len(targets), len(srcs)))
     feature_shape = targets[0][0].shape[0]
     if feature_shape == 2048:
@@ -169,7 +169,9 @@ def cost_matrix(model, srcs, targets, cost):
                         continue
                     f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
                     sim = model.verify(f_src_temp, f_target)
-                    sim = sim.mean(dim=0).cpu().data.numpy()[1]
+                    sim = sim.cpu().data.numpy()[:, 1]
+                    weight = np.asarray([np.exp(-i * alpha) for i in range(len(sim))])
+                    sim = (sim * weight).sum() / weight.sum()
                     cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
             return cost
     with torch.no_grad():
@@ -183,11 +185,14 @@ def cost_matrix(model, srcs, targets, cost):
             f_targets.append(model.get_feature(tars))
         for i, f_src in enumerate(f_srcs):
             for j, f_target in enumerate(f_targets):
+                if cost[j, i] == INFTY_COST:
+                    continue
                 f_src_temp = torch.Tensor(np.asarray([f_src.cpu().data.numpy() for _ in f_target])).cuda()
                 sim = model.verify(f_src_temp, f_target)
-                sim = sim.mean(dim=0).cpu().data.numpy()[1]
+                sim = sim.cpu().data.numpy()[:, 1]
+                weight = np.asarray([np.exp(-i * alpha) for i in range(len(sim))])
+                sim = (sim * weight).sum() / weight.sum()
                 cost[j, i] = -np.log(sim + 1e-5)  # np.log((1 - sim) / sim)
-
     return cost
 
 
@@ -214,8 +219,6 @@ class SimilarityMetric(object):
     """
 
     def __init__(self, th, model, budget=16):
-        # Remove the final fc layer and classifier layer
-
         # Change to test mode
         model = model.eval()
         model = model.cuda()

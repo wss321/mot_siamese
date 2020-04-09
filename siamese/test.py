@@ -33,6 +33,7 @@ parser.add_argument('--batchsize', default=128, type=int, help='batchsize')
 parser.add_argument('--PCB', action='store_true', help='use PCB')
 parser.add_argument('--multi', action='store_true', help='use multiple query')
 parser.add_argument('--fp16', action='store_true', help='use fp16.')
+parser.add_argument('--nclasses', default=751, type=int, help='number of classes')
 
 opt = parser.parse_args()
 ###load config###
@@ -124,7 +125,10 @@ def extract_feature(model, dataloaders):
             input_img = Variable(img.cuda())
             if opt.fp16:
                 input_img = input_img.half()
-            outputs = model.get_feature(input_img)
+            if opt.PCB:
+                outputs = model(input_img)
+            else:
+                outputs = model.get_feature(input_img)
             ff = ff + outputs
         # norm feature
         if opt.PCB:

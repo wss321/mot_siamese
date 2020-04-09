@@ -140,6 +140,16 @@ def matching_cascade(
                 distance_metric, max_distance, tracks, detections,
                 track_indices_l, unmatched_detections)
         matches += matches_l
+    # 不用级联匹配
+    # track_indices_l = [
+    #     k for k in track_indices
+    # ]
+    # matches_l, _, unmatched_detections = \
+    #     min_cost_matching(
+    #         distance_metric, max_distance, tracks, detections,
+    #         track_indices_l, unmatched_detections)
+    # matches += matches_l
+
     unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches))
     return matches, unmatched_tracks, unmatched_detections
 

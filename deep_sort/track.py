@@ -10,7 +10,8 @@ class TrackState(object):
 
     Tentative = 1
     Confirmed = 2
-    Deleted = 3
+    Lost = 3
+    Deleted = 4
 
 
 class Track(object):
@@ -119,6 +120,9 @@ class Track(object):
             The Kalman filter.
 
         """
+        if self.state != TrackState.Confirmed:
+            self.mean[7] = 0
+            self.mean[6] = 0
         self.mean, self.covariance = kf.predict(self.mean, self.covariance)
         self.age += 1
         self.time_since_update += 1

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function, division
-
+import matplotlib.pyplot as plt
+from random import shuffle
 import argparse
 import torch
 from torch.autograd import Variable
@@ -10,17 +11,19 @@ import cv2
 import os
 
 import yaml
-from siamese.model import Siamese
-from tracker.track_utils import load_network
+from siamese.model import Siamese, TripletSiamese
 import numpy as np
-
-# --------
+from PIL import Image
 
 parser = argparse.ArgumentParser(description='Training')
-parser.add_argument('--gpu_ids', default='0', type=str, help='gpu_ids: e.g. 0  0,1,2  0,2')
-parser.add_argument('--which_epoch', default='last', type=str, help='0,1,2,3...or last')
-parser.add_argument('--test_dir', default='../Market/pytorch', type=str, help='./test_data')
-parser.add_argument('--name', default='ft_ResNet50', type=str, help='save model path')
+parser.add_argument('--gpu_ids', default='0', type=str,
+                    help='gpu_ids: e.g. 0  0,1,2  0,2')
+parser.add_argument('--which_epoch', default='last',
+                    type=str, help='0,1,2,3...or last')
+parser.add_argument('--test_dir', default='../Market/pytorch/',
+                    type=str, help='./test_data')
+parser.add_argument('--name', default='ft_ResNet50',
+                    type=str, help='save model path')
 parser.add_argument('--batchsize', default=256, type=int, help='batchsize')
 parser.add_argument('--use_dense', action='store_true', help='use densenet121')
 parser.add_argument('--PCB', action='store_true', help='use PCB')
@@ -30,7 +33,7 @@ parser.add_argument('--fp16', action='store_true', help='use fp16.')
 opt = parser.parse_args()
 
 # load the training config
-config_path = os.path.join(r'E:\PyProjects\MOT\tracker\siamese', 'opts.yaml')
+config_path = os.path.join(r'E:\PyProjects\MOT\siamese', 'opts.yaml')
 with open(config_path, 'r') as stream:
     config = yaml.load(stream)
 
@@ -47,6 +50,11 @@ data_transforms = transforms.Compose([
 ])
 
 use_gpu = torch.cuda.is_available()
+
+
+def load_network(network, save_path=r"E:\PyProjects\MOT\siamese\net_last.pth"):
+    network.load_state_dict(torch.load(save_path), strict=False)
+    return network
 
 
 def fliplr(img):
@@ -70,10 +78,12 @@ def verify(model, img1, img2):
     return sim
 
 
-def get_query(data_path, seed=0):
+def get_query(data_path, num_image=10, seed=0):
     imgs_list = os.listdir(data_path)
-    imgs_label = [int(imgs_list[i].split("_")[0]) for i in range(len(imgs_list))]
-    label_set = list(set(imgs_label))
+    imgs_label = [int(imgs_list[i].split("_")[0])
+                  for i in range(len(imgs_list))]
+    label_set = list(set(imgs_label))[:num_image]
+    # shuffle(label_set)
     imgs_label = np.asarray(imgs_label, dtype=int)
     imgs = []
     for s in label_set:
@@ -84,14 +94,15 @@ def get_query(data_path, seed=0):
         img = cv2.imread(os.path.join(crop_path, imgs_list[index]))
         imgs.append(img)
     img = np.hstack(imgs)
-    cv2.imwrite("./query.jpg", img)
+    # cv2.imwrite("./query.jpg", img)
     return imgs, label_set
 
 
-def get_gallery(data_path, seed=0):
+def get_gallery(data_path, num_image=10, seed=0):
     imgs_list = os.listdir(data_path)
-    imgs_label = [int(imgs_list[i].split("_")[0]) for i in range(len(imgs_list))]
-    label_set = list(set(imgs_label))
+    imgs_label = [int(imgs_list[i].split("_")[0])
+                  for i in range(len(imgs_list))]
+    label_set = list(set(imgs_label))[:num_image]
     imgs_label = np.asarray(imgs_label, dtype=int)
     imgs = []
     for s in label_set:
@@ -102,19 +113,47 @@ def get_gallery(data_path, seed=0):
         img = cv2.imread(os.path.join(crop_path, imgs_list[index]))
         imgs.append(img)
     img = np.hstack(imgs)
-    cv2.imwrite("./gallery.jpg", img)
+    # cv2.imwrite("./gallery.jpg", img)
     return imgs, label_set
+
+
+def draw_grid(img, line_color=(0, 0, 0), thickness=1, type_=cv2.LINE_AA, pxstep_h=128, pxstep_v=256):
+    '''(ndarray, 3-tuple, int, int) -> void
+    draw gridlines on img
+    line_color:
+        BGR representation of colour
+    thickness:
+        line thickness
+    type:
+        8, 4 or cv2.LINE_AA
+    pxstep:
+        grid line frequency in pixels
+    '''
+    x = pxstep_h
+    y = pxstep_v
+    while x < img.shape[1]:
+        cv2.line(
+            img, (x, 0), (x, img.shape[0]), color=line_color, lineType=type_, thickness=thickness)
+        x += pxstep_h
+
+    while y < img.shape[0]:
+        cv2.line(img, (0, y), (img.shape[1], y),
+                 color=line_color, lineType=type_, thickness=thickness)
+        y += pxstep_v
 
 
 if __name__ == '__main__':
     from sklearn.utils.linear_assignment_ import linear_assignment
 
     crop_path = "./track_img/S2_L1"
-    query, q_l = get_query(crop_path, seed=2110)
-    gallery, g_l = get_gallery(crop_path, seed=205)
+    # crop_path = r"E:\PyProjects\datasets\Market\pytorch\gallery"
+    num_img = 8
+    query, q_l = get_query(crop_path, num_img, seed=2108)
+    gallery, g_l = get_gallery(crop_path, num_img, seed=230)
     sim_matrix = np.zeros((len(q_l), len(g_l)))
-    model_structure = Siamese(751)
-    model = load_network(model_structure)
+    model_structure = TripletSiamese(751)
+    model = load_network(
+        model_structure, save_path=r"E:\PyProjects\MOT\siamese\tripletnet_last.pth")
     # Change to test mode
     model = model.eval()
     m = []
@@ -131,16 +170,53 @@ if __name__ == '__main__':
                 m.append((i + 1, j + 1))
             sim_matrix[i, j] = 1 - s
             sim_matrix[j, i] = 1 - s
-    print(m)
+    # print(m)
+    # print(1-sim_matrix)
     indices = linear_assignment(sim_matrix)
+    orig_q = query
+    orig_g = gallery
     query = np.asarray(query)[indices[:, 0]]
-    gallery = np.asarray(gallery)[indices[:, 0]]
-    query = np.hstack(query)
-    gallery = np.hstack(gallery)
-    match = np.vstack([query, gallery])
-    cv2.imwrite("./match3.jpg", match)
-    print(sim_matrix)
-    print(indices)
+    # print(query.shape)
+    white = np.ones(
+        shape=(query.shape[0], 80, query.shape[2], query.shape[3])) * 255
+    gallery = np.asarray(gallery)[indices[:, 1]]
+    sim = 1 - sim_matrix
+    txt = []
+    for i in indices:
+        txt.append("{:.2f}".format(100 * sim[i[0], i[1]]))
+    h_query = np.hstack(query)
+    white = np.hstack(white)
+    h_gallery = np.hstack(gallery)
+    match = np.vstack([h_query, h_gallery, white])
+    for i, t in enumerate(txt):
+        cv2.putText(match, t, (i * 128 + 20, 40 + 256 * 2), 0,
+                    5e-3 * 200, (0, 0, 0), 2)
+    cv2.imwrite("./image_sim_test/triplet_match.jpg", match)
+    num_img = len(orig_g)
+    h_query = np.hstack(orig_q)
+    v_gallery = np.vstack(orig_g)
+    bg = np.ones(
+        shape=(256 * (num_img + 1), 128 * (num_img + 1), 3), dtype='uint8') * 255
+    for i, sim_i in enumerate(sim):
+        for j, sim_j in enumerate(sim_i):
+            loc_x = (i + 1) * 128 + 20
+            loc_y = 120 + 256 * (j + 1)
+            cv2.putText(bg, "{:.2f}".format(100 * sim_j), (loc_x, loc_y), 0,
+                        5e-3 * 200, (0, 0, 0), 2)
+    draw_grid(bg)
+    # cv2.imwrite("./image_sim_test/triplet_bg.jpg", bg)
+    # print(h_query.shape)
+    # print(h_query.dtype)
+    h_query = Image.fromarray(cv2.cvtColor(h_query, cv2.COLOR_BGR2RGB))
+    v_gallery = Image.fromarray(cv2.cvtColor(v_gallery, cv2.COLOR_BGR2RGB))
+    bg = Image.fromarray(cv2.cvtColor(bg, cv2.COLOR_BGR2RGB))
+    bg.paste(h_query, (128, 0, 128 * (num_img + 1), 256))
+    bg.paste(v_gallery, (0, 256, 128, 256 * (num_img + 1)))
+    bg.save("./image_sim_test/triplet_matrix.jpg")
+    print("done.")
+    # print(sim_matrix)
+    # print(indices)
+    # print(sim_matrix[indices])
     # import os
     # from tqdm import tqdm
     #

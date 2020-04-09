@@ -1,13 +1,14 @@
 import numpy as np
 import cv2
 import os, errno
-from eval.eval_mot import extract, logger, load_network, Siamese, tqdm
+from eval.eval_mot import extract, logger, load_network, Siamese, tqdm, TripletSiamese
 import logging
 from deep_sort.nn_matching import data_transforms
 import torch
 import argparse
 
 
+@torch.no_grad()
 def generate_detections(args):
     """Generate detections with features.
     Parameters
@@ -36,7 +37,10 @@ def generate_detections(args):
                 "Failed to created output directory '%s'" % args.output_dir)
     logger.setLevel(logging.INFO)
     logger.info("Loading Model...")
-    model = Siamese(751)
+    if args.triplet_model:
+        model = TripletSiamese(751)
+    else:
+        model = Siamese(751)
     model = load_network(model, args.model_dir)
     model = model.cuda()
     model = model.eval()
@@ -44,6 +48,10 @@ def generate_detections(args):
     for sequence in os.listdir(args.data_dir):
         logger.info("Processing %s" % sequence)
         sequence_dir = os.path.join(args.data_dir, sequence)
+        output_filename = os.path.join(detection_dir, sequence, "det",
+                                       "{}_{}.npy".format(sequence, args.det_file.split(".")[0]))
+        # if os.path.exists(output_filename):
+        #     continue
 
         image_dir = os.path.join(sequence_dir, "img1")
         image_filenames = {
@@ -72,7 +80,7 @@ def generate_detections(args):
             rois = extract(bgr_image, rows[:, 2:6].copy())
             # print(rois)
             # cv2.imshow("", rois[0])
-            # cv2.waitKey(1)
+            # cv2.waitKey(100)
             with torch.no_grad():
                 if len(rois) == 0:
                     print("length is 0")
@@ -82,9 +90,6 @@ def generate_detections(args):
                 f_rois = model.get_feature(rois).cpu().data.numpy()
             detections_out += [np.r_[(row, feature)] for row, feature
                                in zip(rows, f_rois)]
-
-        output_filename = os.path.join(detection_dir, sequence, "det",
-                                       "{}_{}.npy".format(sequence, args.det_file.split(".")[0]))
         np.save(
             output_filename, np.asarray(detections_out), allow_pickle=False)
         # np.savetxt(os.path.join(output_dir, "det.txt"), np.asarray(detections_out), delimiter=",",
@@ -96,8 +101,10 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', default="../datasets/MOT16/train/", type=str, help='dataset path')
     parser.add_argument('--output_dir', default='./output', type=str, help='output dir')
     parser.add_argument('--det_file', default='det.txt', type=str, help='detection file')
-    parser.add_argument('--model_dir', default=r"E:\PyProjects\MOT\tracker\siamese\net_last.pth", type=str,
+    parser.add_argument('--model_dir', default=r"E:\PyProjects\MOT\siamese\tripletnet_last.pth", type=str,
                         help='siamese model path')
+    parser.add_argument('--triplet-model', action='store_true', help='whether use triplet model')
     args = parser.parse_args()
     generate_detections(args)
     # python generate_det_feature.py --det_file det.txt --data_dir ../datasets/MOT16/train/
+    # python generate_det_feature.py --det_file FairMOT.txt --data_dir ../datasets/Crowd_PETS09/S2/L1 --triplet-model

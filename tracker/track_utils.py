@@ -7,7 +7,7 @@ import numpy as np
 from torchvision import transforms
 import os
 import cv2
-from .loader import extract_image_patch, load_detections, detection_from_frame_id, show_bboxes
+from loader import extract_image_patch, load_detections, detection_from_frame_id, show_bboxes
 from scipy.optimize import linear_sum_assignment
 from sklearn.utils.linear_assignment_ import linear_assignment
 
@@ -58,7 +58,7 @@ data_transforms = transforms.Compose([
 
 
 def load_network(network):
-    save_path = r"E:\PyProjects\MOT\tracker\siamese\net_last.pth"
+    save_path = r"E:\PyProjects\MOT\siamese\net_last.pth"
     # os.path.join('./siamese', 'net_last.pth')
     network.load_state_dict(torch.load(save_path), strict=False)
     return network
